@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: cicd-app
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      containers:
+        - name: backend
+          image: IMAGE_BACKEND
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef: { name: app-config }
+          env:
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: db-secret, key: DB_PASSWORD } }
+            - name: APP_VERSION
+              value: "IMAGE_TAG"
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: cicd-app
+spec:
+  selector: { app: backend }
+  ports:
+    - port: 3000
+      targetPort: 3000
